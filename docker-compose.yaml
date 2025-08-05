@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  backend:
+    build: .
+    ports: ["8080:8080"]
+    depends_on: [db]
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: dysec123
+      DB_NAME: dysec_db
+      JWT_SECRET_KEY: ${leader_clan_pamungkas_minta_dikick_karena_gabisa_war}
+      GEMINI_API_KEY: ${AIzaSyCO3X5Cs0TKHqRNsCGWUjh3k8ccVHJaGdE}
+    networks: [dysec-net]
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: dysec_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dysec123
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    ports: ["5433:5432"]
+    networks: [dysec-net]
+networks:
+  dysec-net:
+volumes:
+  postgres_data:
