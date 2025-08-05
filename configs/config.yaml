@@ -1,0 +1,13 @@
+database:
+  host: "localhost"
+  port: "5432"
+  user: "postgres"
+  password: "dysec123"
+  dbname: "dysec_db"
+  sslmode: "disable"
+
+jwt:
+  secret_key: "leader_clan_pamungkas_minta_dikick_karena_gabisa_war"
+
+gemini:
+  api_key: "AIzaSyCO3X5Cs0TKHqRNsCGWUjh3k8ccVHJaGdE"

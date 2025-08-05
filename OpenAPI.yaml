@@ -1,0 +1,35 @@
+openapi: 3.0.0
+info:
+  title: Dysec API
+  version: 1.0.0
+  description: API for Dyscalculia Detector Application.
+
+servers:
+  - url: /api/v1
+
+paths:
+  /auth/google:
+    post:
+      summary: Authenticates user with Google ID Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: Google ID Token from client.
+      responses:
+        '200':
+          description: Authentication successful, returns app token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  app_token:
+                    type: string
