@@ -2,6 +2,7 @@ package database
 
 import (
 	"Dysec/internal/models"
+	"errors"
 	"fmt"
 	"log"
 	"strings" // <-- IMPORT BARU
@@ -12,27 +13,33 @@ import (
 )
 
 func Connect() (*gorm.DB, error) {
-	// Prioritaskan Environment Variables
-	viper.SetEnvPrefix("DB") // Hanya cari env var yang diawali DB_
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	// --- PERBAIKAN LOGIKA VIPER ---
 
-	// Baca juga dari file config sebagai fallback/default
+	// 1. Atur nama dan path file konfigurasi
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("./configs")
 
+	// 2. Atur agar bisa membaca dari environment variables juga (untuk Docker)
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	// 3. Coba baca file konfigurasi
 	if err := viper.ReadInConfig(); err != nil {
-		log.Println("Could not find config.yaml, using environment variables only.")
+		log.Println("Could not find config.yaml, will rely on environment variables.")
 	}
 
-	// Ambil nilai. Viper akan otomatis mengambil dari Env Var jika ada,
-	// jika tidak ada, ia akan ambil dari file config.
-	host := viper.GetString("HOST")         // DB_HOST
-	port := viper.GetString("PORT")         // DB_PORT
-	user := viper.GetString("USER")         // DB_USER
-	password := viper.GetString("PASSWORD") // DB_PASSWORD
-	dbname := viper.GetString("NAME")       // DB_NAME
+	// 4. Ambil nilai dengan path lengkap dari file YAML
+	host := viper.GetString("database.host")
+	port := viper.GetString("database.port")
+	user := viper.GetString("database.user")
+	password := viper.GetString("database.password")
+	dbname := viper.GetString("database.dbname")
+
+	// 5. Validasi: Pastikan nilai tidak kosong
+	if host == "" || port == "" || user == "" || dbname == "" {
+		return nil, errors.New("database configuration is incomplete. Please check config.yaml or environment variables")
+	}
 
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
 		host, user, password, dbname, port,
