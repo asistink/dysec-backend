@@ -6,12 +6,22 @@ import (
 	"Dysec/internal/handlers"
 	"Dysec/internal/middleware"
 	"log"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 )
 
 func main() {
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath("./configs")
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	if err := viper.ReadInConfig(); err != nil {
+		log.Println("Could not find config.yaml, using environment variables only.")
+	}
 	db, err := database.Connect()
 	if err != nil {
 		log.Fatalf("Could not connect to the database: %v", err)
@@ -50,4 +60,5 @@ func main() {
 	if err := router.Run(":8080"); err != nil {
 		log.Fatal("Failed to start server: ", err)
 	}
+
 }
