@@ -10,11 +10,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	//"google.golang.org/api/idtoken"
+	"google.golang.org/api/idtoken"
 	"gorm.io/gorm"
 	//"gorm.io/gorm/clause"
 )
@@ -70,7 +68,7 @@ func New(db *gorm.DB, aiService *ai.Service) Handler {
 }
 
 func (h *Handler) GoogleAuthHandler(c *gin.Context) {
-	var req struct { // Hanya butuh token
+	var req struct {
 		Token string `json:"token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {

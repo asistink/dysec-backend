@@ -13,15 +13,17 @@ import (
 )
 
 func main() {
-	// Inisialisasi Viper untuk membaca konfigurasi
+	// --- PENGATURAN KONFIGURASI DI PALING ATAS ---
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./configs")
-	viper.AutomaticEnv()
+	viper.AddConfigPath("./configs") // Path ke folder config
+	viper.AutomaticEnv()             // Memungkinkan pembacaan dari environment variable
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
+	// Baca file konfigurasi
 	if err := viper.ReadInConfig(); err != nil {
-		log.Println("Could not find config.yaml, using environment variables only.")
+		// Jangan berhenti jika file tidak ada, karena mungkin kita pakai env var di Docker
+		log.Printf("Warning: Could not read config.yaml: %v. Relying on environment variables.", err)
 	}
 
 	// 1. Inisialisasi Database
@@ -31,7 +33,10 @@ func main() {
 	}
 
 	// 2. Baca Konfigurasi Gemini API Key
-	geminiAPIKey := viper.GetString("GEMINI_API_KEY")
+	geminiAPIKey := viper.GetString("GEMINI_API_KEY") // Coba dari env var
+	if geminiAPIKey == "" {
+		geminiAPIKey = viper.GetString("gemini.api_key") // Fallback ke config.yaml
+	}
 	if geminiAPIKey == "" {
 		log.Fatal("Gemini API key not found in config or environment variables")
 	}
@@ -42,17 +47,15 @@ func main() {
 		log.Fatalf("Could not initialize AI service: %v", err)
 	}
 
-	// 4. Inisialisasi Handler (tanpa JWT Secret)
+	// 4. Inisialisasi Handler
 	h := handlers.New(db, aiService)
 
 	// 5. Setup Router
 	router := gin.Default()
 	v1 := router.Group("/api/v1")
 	{
-		// Endpoint login tidak dilindungi
 		v1.POST("/auth/google", h.GoogleAuthHandler)
 
-		// Grup untuk endpoint yang dilindungi dengan middleware baru
 		authorized := v1.Group("/")
 		authorized.Use(middleware.GoogleTokenMiddleware(db))
 		{
