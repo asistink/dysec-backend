@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+	// Inisialisasi Viper untuk membaca konfigurasi
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("./configs")
@@ -22,32 +23,38 @@ func main() {
 	if err := viper.ReadInConfig(); err != nil {
 		log.Println("Could not find config.yaml, using environment variables only.")
 	}
+
+	// 1. Inisialisasi Database
 	db, err := database.Connect()
 	if err != nil {
 		log.Fatalf("Could not connect to the database: %v", err)
 	}
 
-	jwtSecret := viper.GetString("jwt.secret_key")
-	if jwtSecret == "" {
-		log.Fatal("JWT secret key not found in config")
-	}
-	geminiAPIKey := viper.GetString("gemini.api_key")
+	// 2. Baca Konfigurasi Gemini API Key
+	geminiAPIKey := viper.GetString("GEMINI_API_KEY")
 	if geminiAPIKey == "" {
-		log.Fatal("Gemini API key not found in config")
+		log.Fatal("Gemini API key not found in config or environment variables")
 	}
+
+	// 3. Inisialisasi AI Service
 	aiService, err := ai.NewService(geminiAPIKey)
 	if err != nil {
 		log.Fatalf("Could not initialize AI service: %v", err)
 	}
-	h := handlers.New(db, jwtSecret, aiService)
 
+	// 4. Inisialisasi Handler (tanpa JWT Secret)
+	h := handlers.New(db, aiService)
+
+	// 5. Setup Router
 	router := gin.Default()
 	v1 := router.Group("/api/v1")
 	{
+		// Endpoint login tidak dilindungi
 		v1.POST("/auth/google", h.GoogleAuthHandler)
 
+		// Grup untuk endpoint yang dilindungi dengan middleware baru
 		authorized := v1.Group("/")
-		authorized.Use(middleware.JWTMiddleware(jwtSecret))
+		authorized.Use(middleware.GoogleTokenMiddleware(db))
 		{
 			authorized.POST("/tests/start", h.StartSessionHandler)
 			authorized.POST("/tests/:id/submit", h.SubmitTestHandler)
@@ -56,9 +63,9 @@ func main() {
 		}
 	}
 
+	// 6. Jalankan Server
 	log.Println("Starting server on port 8080...")
 	if err := router.Run(":8080"); err != nil {
 		log.Fatal("Failed to start server: ", err)
 	}
-
 }

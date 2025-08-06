@@ -1,15 +1,19 @@
 package middleware
 
 import (
+	"Dysec/internal/models"
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
+	"google.golang.org/api/idtoken"
+	"gorm.io/gorm"
 )
 
-func JWTMiddleware(secretKey string) gin.HandlerFunc {
+// GoogleTokenMiddleware akan memvalidasi Google ID Token di setiap request
+func GoogleTokenMiddleware(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -24,23 +28,23 @@ func JWTMiddleware(secretKey string) gin.HandlerFunc {
 		}
 		tokenString := parts[1]
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return []byte(secretKey), nil
-		})
-
-		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		// Validasi token ke server Google
+		payload, err := idtoken.Validate(context.Background(), tokenString, "")
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Google ID Token"})
 			return
 		}
 
-		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			// kita bisa menyimpan user_id atau data lain dari token
-			c.Set("user_id", claims["user_id"])
+		// Cari user di database kita berdasarkan Google ID dari token
+		var user models.User
+		googleID := payload.Subject
+		if err := db.Where("google_id = ?", googleID).First(&user).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found for this token"})
+			return
 		}
 
+		// Simpan user_id internal kita ke dalam context untuk digunakan handler selanjutnya
+		c.Set("user_id", float64(user.ID)) // Gin context lebih aman dengan float64 untuk angka
 		c.Next()
 	}
 }

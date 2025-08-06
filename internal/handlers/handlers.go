@@ -47,7 +47,6 @@ type AIResponse struct {
 
 type Handler struct {
 	DB        *gorm.DB
-	JWTSecret string
 	AIService *ai.Service
 }
 
@@ -66,46 +65,43 @@ type AIRequestData struct {
 	SubsAcc   float64 `json:"subs_acc"`
 }
 
-func New(db *gorm.DB, jwtSecret string, aiService *ai.Service) Handler {
-	return Handler{DB: db, JWTSecret: jwtSecret, AIService: aiService}
+func New(db *gorm.DB, aiService *ai.Service) Handler {
+	return Handler{DB: db, AIService: aiService}
 }
 
 func (h *Handler) GoogleAuthHandler(c *gin.Context) {
-	var req GoogleAuthRequest
+	var req struct { // Hanya butuh token
+		Token string `json:"token" binding:"required"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: token is required"})
 		return
 	}
 
-	user := models.User{
-		GoogleID:   req.GoogleID,
-		Email:      req.Email,
-		Name:       req.Name,
-		PictureURL: req.PictureURL,
+	// Verifikasi token untuk memastikan login valid dan mendapatkan data user
+	payload, err := idtoken.Validate(c.Request.Context(), req.Token, "")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Google ID Token"})
+		return
 	}
 
-	if err := h.DB.Where(models.User{GoogleID: req.GoogleID}).FirstOrCreate(&user).Error; err != nil {
+	// Ambil data dari token dan simpan/update user di database
+	user := models.User{
+		GoogleID:   payload.Subject,
+		Email:      payload.Claims["email"].(string),
+		Name:       payload.Claims["name"].(string),
+		PictureURL: payload.Claims["picture"].(string),
+	}
+
+	if err := h.DB.Where(models.User{GoogleID: user.GoogleID}).FirstOrCreate(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not process user"})
 		return
 	}
 
-	claims := jwt.MapClaims{
-		"user_id": user.ID,
-		"email":   user.Email,
-		"exp":     time.Now().Add(time.Hour * 72).Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(h.JWTSecret))
-	if err != nil {
-		log.Printf("ERROR: Failed to sign token: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate token"})
-		return
-	}
-
+	// Tidak ada lagi app_token yang dikembalikan
 	c.JSON(http.StatusOK, gin.H{
-		"message":   "User authenticated successfully",
-		"app_token": tokenString,
+		"message": "User authenticated successfully. Use the provided ID token for subsequent requests.",
+		"user":    user,
 	})
 }
 
